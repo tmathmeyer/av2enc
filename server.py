@@ -4,11 +4,15 @@ import uuid
 import threading
 import subprocess
 import shutil
+import time
+import json
+import queue
 from flask import Flask, request, jsonify, send_file, render_template
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['OUTPUT_FOLDER'] = 'outputs'
+HISTORY_FILE = os.path.join(app.config['OUTPUT_FOLDER'], 'history.json')
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
@@ -20,6 +24,27 @@ AVMENC = "/app/avm/build/avmenc"
 AV2_MUX = "/app/av2-tools/build/apps/av2_mux/av2_mux"
 
 tasks = {}
+task_queue = queue.Queue()
+
+def load_history():
+    global tasks
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r") as f:
+                tasks = json.load(f)
+            # Reset any stuck tasks
+            for tid, tinfo in tasks.items():
+                if tinfo['status'] in ['queued', 'encoding']:
+                    tinfo['status'] = 'error'
+                    tinfo['log'].append("Task aborted due to server restart.")
+        except Exception:
+            tasks = {}
+
+def save_history():
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(tasks, f, indent=2)
+
+load_history()
 
 def get_framerate(input_file):
     try:
@@ -35,8 +60,11 @@ def get_framerate(input_file):
     except Exception:
         return "30"
 
-def encode_task(task_id, input_path, threads, cpu_used, limit):
+def process_encode_task(task_id, input_path, threads, cpu_used, limit):
     tasks[task_id]['status'] = 'encoding'
+    tasks[task_id]['start_time'] = time.time()
+    save_history()
+
     output_mp4 = os.path.join(app.config['OUTPUT_FOLDER'], f"{task_id}.mp4")
     temp_obu = os.path.join(app.config['OUTPUT_FOLDER'], f"{task_id}.obu")
     
@@ -71,6 +99,8 @@ def encode_task(task_id, input_path, threads, cpu_used, limit):
                 if avmenc.returncode != 0:
                     tasks[task_id]['status'] = 'error'
                     tasks[task_id]['log'].append("Encoding failed.")
+                    tasks[task_id]['end_time'] = time.time()
+                    save_history()
                     return
 
         tasks[task_id]['log'].append("Encoding finished. Muxing to MP4...")
@@ -83,6 +113,8 @@ def encode_task(task_id, input_path, threads, cpu_used, limit):
         if mux.returncode != 0:
             tasks[task_id]['status'] = 'error'
             tasks[task_id]['log'].append(f"Muxing failed: {mux.stderr}")
+            tasks[task_id]['end_time'] = time.time()
+            save_history()
             return
             
         tasks[task_id]['log'].append("Muxing complete.")
@@ -96,6 +128,21 @@ def encode_task(task_id, input_path, threads, cpu_used, limit):
     except Exception as e:
         tasks[task_id]['status'] = 'error'
         tasks[task_id]['log'].append(f"Exception: {str(e)}")
+    finally:
+        tasks[task_id]['end_time'] = time.time()
+        if 'start_time' in tasks[task_id]:
+             tasks[task_id]['elapsed_seconds'] = tasks[task_id]['end_time'] - tasks[task_id]['start_time']
+        save_history()
+
+def worker():
+    while True:
+        task = task_queue.get()
+        process_encode_task(**task)
+        task_queue.task_done()
+
+# Start background queue worker
+worker_thread = threading.Thread(target=worker, daemon=True)
+worker_thread.start()
 
 @app.route("/")
 def index():
@@ -112,7 +159,8 @@ def upload():
         
     threads = request.form.get("threads", 32, type=int)
     cpu_used = request.form.get("cpu_used", 9, type=int)
-    limit = request.form.get("limit", None, type=int)
+    limit = request.form.get("limit", '', type=str)
+    limit = int(limit) if limit.isdigit() else None
 
     task_id = str(uuid.uuid4())
     ext = os.path.splitext(f.filename)[1]
@@ -123,12 +171,23 @@ def upload():
     tasks[task_id] = {
         'status': 'queued',
         'log': [],
-        'filename': f.filename
+        'filename': f.filename,
+        'params': {
+            'threads': threads,
+            'cpu_used': cpu_used,
+            'limit': limit
+        },
+        'queued_time': time.time()
     }
+    save_history()
     
-    thread = threading.Thread(target=encode_task, args=(task_id, input_path, threads, cpu_used, limit))
-    thread.daemon = True
-    thread.start()
+    task_queue.put({
+        'task_id': task_id,
+        'input_path': input_path,
+        'threads': threads,
+        'cpu_used': cpu_used,
+        'limit': limit
+    })
     
     return jsonify({"task_id": task_id})
 
@@ -142,6 +201,10 @@ def status(task_id):
         "status": task['status'],
         "log": task['log'][-10:] if task['log'] else []
     })
+
+@app.route("/history")
+def history():
+    return jsonify(tasks)
 
 @app.route("/download/<task_id>")
 def download(task_id):
