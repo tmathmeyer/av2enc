@@ -2,7 +2,7 @@ FROM python:3.14-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    git cmake ninja-build build-essential ffmpeg \
+    git cmake ninja-build build-essential ffmpeg yasm \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory
