@@ -18,6 +18,7 @@ RUN git clone https://github.com/AOMediaCodec/avm.git && \
 # Clone and build av2-tools (feature/multi_cvs branch)
 RUN git clone https://github.com/AOMediaCodec/av2-tools.git && \
     cd av2-tools && git checkout bf18846d47438a66f60eb62ba8c868251a705151 && \
+    sed -i '1s/^/#include <cstddef>\n/' apps/av2_mux/ref_frame_buffer.h && \
     mkdir -p build && cd build && \
     cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_CONTAINER_TOOLS=ON .. && \
     ninja av2_mux
