@@ -19,7 +19,7 @@ RUN git clone https://github.com/AOMediaCodec/avm.git && \
 RUN git clone https://github.com/AOMediaCodec/av2-tools.git && \
     cd av2-tools && git checkout bf18846d47438a66f60eb62ba8c868251a705151 && \
     mkdir -p build && cd build && \
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release .. && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_CONTAINER_TOOLS=ON .. && \
     ninja av2_mux
 
 # Install Python requirements
