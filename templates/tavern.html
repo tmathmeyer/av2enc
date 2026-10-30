@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The AV2 MSE Tavern — {{ filename }}</title>
+  <style>
+    :root {
+      --wood-dark: #160f0a;
+      --wood-mid: #271a11;
+      --wood-card: #21160e;
+      --brass: #f5b942;
+      --amber: #ff9800;
+      --foam: #fff5dc;
+      --neon-green: #4ade80;
+      --neon-red: #f87171;
+      --muted: #cbb89d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px 24px 36px;
+      background:
+        radial-gradient(circle at 20% 0%, #3a2414 0%, var(--wood-dark) 60%);
+      color: var(--foam);
+      font-family: "Trebuchet MS", system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 18px;
+      border-bottom: 2px dashed rgba(245, 185, 66, 0.35);
+      padding-bottom: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 2rem;
+      color: var(--brass);
+      text-shadow: 0 2px 12px rgba(245, 185, 66, 0.35);
+      letter-spacing: 0.5px;
+    }
+    .tagline {
+      margin-top: 4px;
+      font-style: italic;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 22px;
+      max-width: 1180px;
+      margin: 0 auto;
+      align-items: start;
+    }
+    .card {
+      background: var(--wood-card);
+      border: 2px solid rgba(245, 185, 66, 0.35);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    }
+    .stage-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .video-frame {
+      position: relative;
+      background: #090604;
+      border: 3px solid var(--brass);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 24px rgba(245, 185, 66, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 260px;
+      min-height: 440px;
+    }
+    video {
+      display: block;
+      max-height: 540px;
+      max-width: 540px;
+      width: auto;
+      height: auto;
+      background: #000;
+    }
+    .police-badge {
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 999px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(0, 0, 0, 0.45);
+    }
+    .police-badge.ok {
+      color: #072912;
+      background: var(--neon-green);
+      border-color: #bbf7d0;
+    }
+    .police-badge.warn {
+      color: #2b0707;
+      background: var(--neon-red);
+    }
+    .controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .bar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    button, select, label.file-btn {
+      background: linear-gradient(180deg, #f7c65b 0%, #d9931a 100%);
+      color: #1f1206;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 13px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.12s ease;
+    }
+    button:hover, label.file-btn:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+    button.secondary, select {
+      background: #362417;
+      color: var(--foam);
+      border: 1px solid rgba(245, 185, 66, 0.45);
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .pints-shelf {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+    }
+    .pint {
+      background: #140d08;
+      border: 1px solid rgba(245, 185, 66, 0.3);
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .pint.filled {
+      border-color: var(--brass);
+      background: linear-gradient(
+        180deg,
+        #fff5d6 0%,
+        #fff5d6 18%,
+        #d9820b 19%,
+        #8a4703 100%
+      );
+      color: #1c0f04;
+      font-weight: 700;
+    }
+    .pint-title { font-size: 0.8rem; }
+    .pint-sub { font-size: 0.7rem; opacity: 0.85; margin-top: 2px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .stat-box {
+      background: #140d08;
+      border: 1px solid rgba(245, 185, 66, 0.22);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .stat-val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.95rem;
+      color: var(--brass);
+      margin-top: 2px;
+    }
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.76rem;
+    }
+    .matrix-item {
+      background: #140d08;
+      padding: 5px 8px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .pill-yes { color: var(--neon-green); font-weight: 700; }
+    .pill-no { color: var(--neon-red); font-weight: 700; }
+    #log {
+      background: #0d0805;
+      border: 1px solid rgba(245, 185, 66, 0.25);
+      border-radius: 8px;
+      padding: 10px;
+      height: 150px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.76rem;
+      line-height: 1.42;
+      color: #e9dcc9;
+      margin: 0;
+      white-space: pre-wrap;
+    }
+    .toast-float {
+      position: fixed;
+      pointer-events: none;
+      font-size: 1.8rem;
+      animation: floatUp 1.2s ease-out forwards;
+      z-index: 999;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0) scale(0.8) rotate(-8deg); opacity: 1; }
+      100% { transform: translateY(-110px) scale(1.35) rotate(12deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🍺 THE AV2 MSE TAVERN 🍺</h1>
+    <div class="tagline">
+      "Where Everybody Knows Your FourCC" — Now Pouring: {{ filename }}
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="card stage-card">
+      <div class="video-frame">
+        <video id="vid" controls muted playsinline loop></video>
+      </div>
+      <div id="aspectBadge" class="police-badge">
+        🕵️ Aspect Ratio Police: Waiting for first AV2 frame...
+      </div>
+    </div>
+
+    <div class="controls-panel">
+      <div class="card">
+        <div class="bar-row" style="margin-bottom: 10px;">
+          <label for="boxFlavor" style="font-size:0.84rem;color:var(--muted);">Sample Entry:</label>
+          <select id="boxFlavor">
+            <option value="av2E" selected>av2E + av2C (av2-isobmff OutOfBandAV2SampleEntry)</option>
+            <option value="av02">av02 + av2C (av02 Sample Entry)</option>
+          </select>
+
+          <label for="mimeSelect" style="font-size:0.84rem;color:var(--muted);">MSE MIME:</label>
+          <select id="mimeSelect">
+            <option value='video/mp4; codecs="av2E.00.01M.08"' selected>video/mp4; codecs="av2E.00.01M.08"</option>
+            <option value='video/mp4; codecs="av02.0.01M.08"'>video/mp4; codecs="av02.0.01M.08"</option>
+            <option value='video/mp4; codecs="av02.0.01M.08.3.22.01.01.01.0"'>video/mp4; codecs="av02.0.01M.08.3.22.01.01.01.0"</option>
+          </select>
+        </div>
+
+        <div class="bar-row">
+          <button id="btnPourAll">🍻 Pour All Pints (Full Stream)</button>
+          <button id="btnStartDrip" class="secondary">🚰 Reset for Drip-Pour</button>
+          <button id="btnNextPint" class="secondary" disabled>🍺 Pour Next Pint (moof+mdat)</button>
+          <button id="btnClink" class="secondary">🥂 Clink Mugs!</button>
+          <label class="file-btn secondary" style="margin-left:auto;">
+            📂 Load Custom fMP4
+            <input id="filePicker" type="file" accept=".mp4,video/mp4" style="display:none;">
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div id="tapLineHeader" style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;">
+          FRAGMENT TAP LINE (loading fMP4 segments...):
+        </div>
+        <div id="pintsShelf" class="pints-shelf"></div>
+      </div>
+
+      <div class="card">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">MediaSource</div>
+            <div class="stat-val" id="statMsState">closed</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Resolution</div>
+            <div class="stat-val" id="statRes">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Buffered Range</div>
+            <div class="stat-val" id="statBuf">0.00s</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Decoded Frames</div>
+            <div class="stat-val" id="statFrames">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:6px;">
+          LIVE MediaSource.isTypeSupported() TASTE TEST:
+        </div>
+        <div id="supportMatrix" class="matrix"></div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:6px;">
+          BARTENDER TELEMETRY LOG:
+        </div>
+        <pre id="log"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STREAM_URL = {{ stream_url | tojson }};
+    const SOURCE_NAME = {{ filename | tojson }};
+
+    const vid = document.getElementById('vid');
+    const logEl = document.getElementById('log');
+    const pintsShelf = document.getElementById('pintsShelf');
+    const tapLineHeader = document.getElementById('tapLineHeader');
+    const aspectBadge = document.getElementById('aspectBadge');
+    const boxFlavorEl = document.getElementById('boxFlavor');
+    const mimeSelectEl = document.getElementById('mimeSelect');
+    const btnPourAll = document.getElementById('btnPourAll');
+    const btnStartDrip = document.getElementById('btnStartDrip');
+    const btnNextPint = document.getElementById('btnNextPint');
+    const btnClink = document.getElementById('btnClink');
+    const filePicker = document.getElementById('filePicker');
+
+    let parsedKeg = null;
+    let activeMs = null;
+    let activeSb = null;
+    let dripNextIndex = 0;
+
+    function log(msg) {
+      const ts = new Date().toISOString().slice(11, 23);
+      logEl.textContent += `[${ts}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function spawnToastEmoji(text) {
+      const el = document.createElement('div');
+      el.className = 'toast-float';
+      el.textContent = text;
+      el.style.left = `${20 + Math.random() * 60}vw`;
+      el.style.top = `${45 + Math.random() * 25}vh`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1250);
+    }
+
+    function parseBoxes(buf, start = 0, end = buf.byteLength) {
+      const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const boxes = [];
+      let pos = start;
+      while (pos + 8 <= end) {
+        let size = dv.getUint32(pos, false);
+        const type = String.fromCharCode(buf[pos + 4], buf[pos + 5], buf[pos + 6], buf[pos + 7]);
+        let hdr = 8;
+        if (size === 1) {
+          if (pos + 16 > end) break;
+          const hi = dv.getUint32(pos + 8, false);
+          const lo = dv.getUint32(pos + 12, false);
+          size = hi * 4294967296 + lo;
+          hdr = 16;
+        } else if (size === 0) {
+          size = end - pos;
+        }
+        if (size < hdr || pos + size > end) break;
+        boxes.push({ type, offset: pos, size, hdr, payloadOffset: pos + hdr, payloadEnd: pos + size });
+        pos += size;
+      }
+      return boxes;
+    }
+
+    function findBox(buf, path, start = 0, end = buf.byteLength) {
+      let curStart = start;
+      let curEnd = end;
+      let found = null;
+      for (const step of path) {
+        found = null;
+        for (const b of parseBoxes(buf, curStart, curEnd)) {
+          if (b.type === step) {
+            found = b;
+            curStart = b.payloadOffset;
+            curEnd = b.payloadEnd;
+            break;
+          }
+        }
+        if (!found) return null;
+      }
+      return found;
+    }
+
+    function parseFmp4Buffer(buf, name) {
+      const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const topBoxes = parseBoxes(buf);
+      const firstMoofIdx = topBoxes.findIndex(b => b.type === 'moof');
+      if (firstMoofIdx <= 0) {
+        throw new Error('No moof boxes found in fragmented MP4');
+      }
+
+      const initEnd = topBoxes[firstMoofIdx].offset;
+      const initBase = buf.slice(0, initEnd);
+
+      let timescale = 30000;
+      let width = 0;
+      let height = 0;
+      const mdhd = findBox(initBase, ['moov', 'trak', 'mdia', 'mdhd']);
+      if (mdhd) {
+        const ver = initBase[mdhd.payloadOffset];
+        timescale = dv.getUint32(mdhd.payloadOffset + (ver === 1 ? 20 : 12), false) || 30000;
+      }
+      const stsd = findBox(initBase, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'stsd']);
+      let stsdFourccOffset = null;
+      if (stsd && stsd.payloadOffset + 16 <= stsd.payloadEnd) {
+        stsdFourccOffset = stsd.payloadOffset + 12;
+        if (stsd.payloadOffset + 44 <= stsd.payloadEnd) {
+          width = dv.getUint16(stsd.payloadOffset + 40, false);
+          height = dv.getUint16(stsd.payloadOffset + 42, false);
+        }
+      }
+
+      const fragments = [];
+      let totalSamples = 0;
+      let seq = 1;
+      for (let i = firstMoofIdx; i < topBoxes.length; i++) {
+        if (topBoxes[i].type !== 'moof') continue;
+        const moofBox = topBoxes[i];
+        let fragEnd = moofBox.payloadEnd;
+        if (i + 1 < topBoxes.length && topBoxes[i + 1].type === 'mdat') {
+          fragEnd = topBoxes[i + 1].payloadEnd;
+          i++;
+        }
+        const fragBytes = buf.subarray(moofBox.offset, fragEnd);
+
+        let baseDts = 0;
+        const tfdt = findBox(buf, ['traf', 'tfdt'], moofBox.payloadOffset, moofBox.payloadEnd);
+        if (tfdt) {
+          const ver = buf[tfdt.payloadOffset];
+          if (ver === 1) {
+            const hi = dv.getUint32(tfdt.payloadOffset + 4, false);
+            const lo = dv.getUint32(tfdt.payloadOffset + 8, false);
+            baseDts = hi * 4294967296 + lo;
+          } else {
+            baseDts = dv.getUint32(tfdt.payloadOffset + 4, false);
+          }
+        }
+
+        let sampleCount = 0;
+        let durSum = 0;
+        const trun = findBox(buf, ['traf', 'trun'], moofBox.payloadOffset, moofBox.payloadEnd);
+        if (trun) {
+          const flags = dv.getUint32(trun.payloadOffset, false) & 0xFFFFFF;
+          sampleCount = dv.getUint32(trun.payloadOffset + 4, false);
+          let pos = trun.payloadOffset + 8;
+          if (flags & 0x001) pos += 4;
+          if (flags & 0x004) pos += 4;
+          for (let s = 0; s < sampleCount && pos + 4 <= trun.payloadEnd; s++) {
+            if (flags & 0x100) {
+              durSum += dv.getUint32(pos, false);
+              pos += 4;
+            }
+            if (flags & 0x200) pos += 4;
+            if (flags & 0x400) pos += 4;
+            if (flags & 0x800) pos += 4;
+          }
+        }
+
+        totalSamples += sampleCount;
+        fragments.push({
+          seq,
+          sampleCount,
+          dtsStartSec: baseDts / timescale,
+          dtsEndSec: (baseDts + durSum) / timescale,
+          byteLength: fragBytes.byteLength,
+          bytes: fragBytes,
+        });
+        seq++;
+      }
+
+      return { name, width, height, timescale, totalSamples, initBase, stsdFourccOffset, fragments };
+    }
+
+    function getInitSegmentForFlavor(keg, flavor) {
+      const out = keg.initBase.slice();
+      if (keg.stsdFourccOffset !== null) {
+        for (let i = 0; i < 4; i++) {
+          out[keg.stsdFourccOffset + i] = flavor.charCodeAt(i);
+        }
+      }
+      return out;
+    }
+
+    function renderSupportMatrix() {
+      const probes = [
+        ['video/mp4; codecs="av02.0.01M.08"', true],
+        ['video/mp4; codecs="av2E.00.01M.08"', true],
+        ['video/mp4; codecs="av2e.00.04H.10"', true],
+        ['video/mp4; codecs="av02.0.04M.10.4.22.09.16.09.0"', true],
+        ['video/webm; codecs="av02.0.01M.08"', true],
+        ['video/mp4; codecs="av02.0.01M.10.1.00.01.01.01.0"', true],
+        ['video/mp4; codecs="av02.00.00"', false],
+        ['video/mp4; codecs="av02.9.99Z.99"', false],
+      ];
+      const container = document.getElementById('supportMatrix');
+      container.innerHTML = '';
+      for (const [mime, expected] of probes) {
+        const ok = window.MediaSource && MediaSource.isTypeSupported(mime);
+        const div = document.createElement('div');
+        div.className = 'matrix-item';
+        const shortLabel = mime.replace('video/', '').replace('; codecs=', ' ');
+        div.innerHTML = `<span>${shortLabel}</span><span class="${ok ? 'pill-yes' : 'pill-no'}">${ok ? 'SUPPORTED' : 'REJECTED'}${ok === expected ? ' ✓' : ' !'}</span>`;
+        container.appendChild(div);
+      }
+    }
+
+    function buildPintsUI(appendedCount) {
+      pintsShelf.innerHTML = '';
+      if (!parsedKeg) return;
+      for (const frag of parsedKeg.fragments) {
+        const filled = frag.seq <= appendedCount;
+        const div = document.createElement('div');
+        div.className = 'pint' + (filled ? ' filled' : '');
+        div.innerHTML = `
+          <div class="pint-title">${filled ? '🍺' : '🫗'} Pint #${frag.seq}</div>
+          <div class="pint-sub">${frag.dtsStartSec.toFixed(1)}s–${frag.dtsEndSec.toFixed(1)}s</div>
+          <div class="pint-sub">${(frag.byteLength / 1024).toFixed(1)} KB</div>
+        `;
+        pintsShelf.appendChild(div);
+      }
+    }
+
+    function updateTelemetry() {
+      const w = vid.videoWidth;
+      const h = vid.videoHeight;
+      document.getElementById('statRes').textContent = w && h ? `${w} × ${h}` : '—';
+
+      if (w > 0 && h > 0) {
+        if (parsedKeg && parsedKeg.width && parsedKeg.height && w === parsedKeg.width && h === parsedKeg.height) {
+          aspectBadge.className = 'police-badge ok';
+          aspectBadge.textContent = `✅ Aspect Ratio Police: ${w}×${h} CERTIFIED (Matches stsd/tkhd!)`;
+        } else {
+          aspectBadge.className = 'police-badge warn';
+          aspectBadge.textContent = `🚨 Aspect Ratio Police: Got ${w}×${h}`;
+        }
+      }
+
+      if (vid.buffered && vid.buffered.length > 0) {
+        const start = vid.buffered.start(0);
+        const end = vid.buffered.end(vid.buffered.length - 1);
+        document.getElementById('statBuf').textContent = `${start.toFixed(2)}s – ${end.toFixed(2)}s`;
+      } else {
+        document.getElementById('statBuf').textContent = '0.00s';
+      }
+
+      if (vid.getVideoPlaybackQuality) {
+        const q = vid.getVideoPlaybackQuality();
+        document.getElementById('statFrames').textContent = `${q.totalVideoFrames} (drop ${q.droppedVideoFrames})`;
+      }
+    }
+
+    setInterval(updateTelemetry, 150);
+    vid.addEventListener('loadedmetadata', () => {
+      updateTelemetry();
+      log(`loadedmetadata -> ${vid.videoWidth}x${vid.videoHeight}, duration=${vid.duration.toFixed(3)}s`);
+    });
+    vid.addEventListener('error', () => {
+      const msg = vid.error ? `${vid.error.code}: ${vid.error.message}` : 'unknown media error';
+      log(`❌ VIDEO ERROR: ${msg}`);
+    });
+
+    function waitUpdateEnd(sb) {
+      return new Promise((resolve, reject) => {
+        const onEnd = () => {
+          sb.removeEventListener('updateend', onEnd);
+          sb.removeEventListener('error', onErr);
+          resolve();
+        };
+        const onErr = () => {
+          sb.removeEventListener('updateend', onEnd);
+          sb.removeEventListener('error', onErr);
+          reject(new Error('SourceBuffer error event'));
+        };
+        sb.addEventListener('updateend', onEnd);
+        sb.addEventListener('error', onErr);
+      });
+    }
+
+    async function setupMseSession(autoPourAll) {
+      if (!parsedKeg) return;
+      const flavor = boxFlavorEl.value;
+      const mime = mimeSelectEl.value;
+      dripNextIndex = 0;
+      buildPintsUI(0);
+      btnNextPint.disabled = true;
+
+      log(`Opening new MediaSource with ${mime} (init segment flavor: '${flavor}')...`);
+      if (!MediaSource.isTypeSupported(mime)) {
+        log(`❌ MediaSource.isTypeSupported('${mime}') returned false! (Did you pass --enable-features=Dav2dVideoDecoder?)`);
+        return;
+      }
+
+      const ms = new MediaSource();
+      activeMs = ms;
+      vid.src = URL.createObjectURL(ms);
+      document.getElementById('statMsState').textContent = ms.readyState;
+
+      await new Promise((resolve) => ms.addEventListener('sourceopen', resolve, { once: true }));
+      if (activeMs !== ms) return;
+      document.getElementById('statMsState').textContent = ms.readyState;
+
+      const sb = ms.addSourceBuffer(mime);
+      activeSb = sb;
+      const initBytes = getInitSegmentForFlavor(parsedKeg, flavor);
+      log(`Appending fMP4 init segment (${initBytes.byteLength} bytes, '${flavor}' + av2-isobmff 'av2C')...`);
+      sb.appendBuffer(initBytes);
+      await waitUpdateEnd(sb);
+
+      if (autoPourAll) {
+        for (let i = 0; i < parsedKeg.fragments.length; i++) {
+          if (activeMs !== ms) return;
+          const frag = parsedKeg.fragments[i];
+          sb.appendBuffer(frag.bytes);
+          await waitUpdateEnd(sb);
+          buildPintsUI(i + 1);
+          log(`🍺 Poured Pint #${frag.seq}/${parsedKeg.fragments.length} (${frag.sampleCount} AV2 samples, DTS ${frag.dtsStartSec.toFixed(2)}s..${frag.dtsEndSec.toFixed(2)}s)`);
+        }
+        if (ms.readyState === 'open') {
+          ms.endOfStream();
+          document.getElementById('statMsState').textContent = ms.readyState;
+          log(`🎉 All ${parsedKeg.fragments.length} pints poured! Calling mediaSource.endOfStream() & raising a glass!`);
+        }
+        spawnToastEmoji('🍻');
+        try {
+          await vid.play();
+        } catch (err) {
+          log(`Autoplay note: ${err.message}`);
+        }
+      } else {
+        btnNextPint.disabled = false;
+        log('🚰 Tap primed with init segment! Click "Pour Next Pint" to drip-feed moof+mdat fragments.');
+      }
+    }
+
+    async function loadStreamFromUrl(url, name) {
+      log(`Fetching fragmented MP4 from ${url}...`);
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        log(`❌ Failed to fetch ${url}: HTTP ${resp.status}`);
+        return;
+      }
+      const buf = new Uint8Array(await resp.arrayBuffer());
+      parsedKeg = parseFmp4Buffer(buf, name);
+      btnPourAll.textContent = `🍻 Pour All ${parsedKeg.fragments.length} Pints (Full Stream)`;
+      tapLineHeader.textContent = `FRAGMENT TAP LINE (${parsedKeg.fragments.length} × moof + mdat segments, ${parsedKeg.totalSamples} AV2 frames, ${parsedKeg.width}×${parsedKeg.height}):`;
+      buildPintsUI(0);
+      await setupMseSession(true);
+    }
+
+    btnPourAll.addEventListener('click', () => setupMseSession(true));
+    btnStartDrip.addEventListener('click', () => setupMseSession(false));
+    boxFlavorEl.addEventListener('change', () => {
+      if (boxFlavorEl.value === 'av2E') {
+        mimeSelectEl.value = 'video/mp4; codecs="av2E.00.01M.08"';
+      } else {
+        mimeSelectEl.value = 'video/mp4; codecs="av02.0.01M.08"';
+      }
+      setupMseSession(true);
+    });
+
+    btnNextPint.addEventListener('click', async () => {
+      if (!parsedKeg || !activeMs || !activeSb || activeMs.readyState !== 'open') return;
+      if (dripNextIndex >= parsedKeg.fragments.length) return;
+      btnNextPint.disabled = true;
+      const frag = parsedKeg.fragments[dripNextIndex];
+      activeSb.appendBuffer(frag.bytes);
+      await waitUpdateEnd(activeSb);
+      dripNextIndex++;
+      buildPintsUI(dripNextIndex);
+      spawnToastEmoji('🍺');
+      log(`🍺 Drip-poured Pint #${frag.seq} (buffered through ${frag.dtsEndSec.toFixed(2)}s)`);
+      if (dripNextIndex === 1) {
+        vid.play().catch(() => {});
+      }
+      if (dripNextIndex >= parsedKeg.fragments.length) {
+        activeMs.endOfStream();
+        document.getElementById('statMsState').textContent = activeMs.readyState;
+        log('🎉 Keg kicked — endOfStream()!');
+      } else {
+        btnNextPint.disabled = false;
+      }
+    });
+
+    btnClink.addEventListener('click', () => {
+      for (const icon of ['🍻', '🍺', '🥂', '🎉']) spawnToastEmoji(icon);
+      log('🥂 NORM!! *clink*');
+    });
+
+    filePicker.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const buf = new Uint8Array(await file.arrayBuffer());
+      log(`📂 Loading custom file "${file.name}" (${buf.byteLength} bytes)...`);
+      parsedKeg = parseFmp4Buffer(buf, file.name);
+      btnPourAll.textContent = `🍻 Pour All ${parsedKeg.fragments.length} Pints (Full Stream)`;
+      tapLineHeader.textContent = `FRAGMENT TAP LINE (${parsedKeg.fragments.length} × moof + mdat segments, ${parsedKeg.totalSamples} AV2 frames, ${parsedKeg.width}×${parsedKeg.height}):`;
+      await setupMseSession(true);
+    });
+
+    renderSupportMatrix();
+    loadStreamFromUrl(STREAM_URL, SOURCE_NAME);
+  </script>
+</body>
+</html>

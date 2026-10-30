@@ -282,18 +282,24 @@ def download_fragmented(task_id):
 
 @app.route("/play/<task_id>")
 def play(task_id):
-    frag = request.args.get("fragmented") in ("1", "true", "yes")
-    _, file_path, err = resolve_task_file(task_id, fragmented=frag)
+    _, file_path, err = resolve_task_file(task_id, fragmented=False)
+    if err:
+        return err
+    return send_file(file_path, mimetype="video/mp4", as_attachment=False, conditional=True)
+
+@app.route("/stream_fragmented/<task_id>")
+def stream_fragmented(task_id):
+    _, file_path, err = resolve_task_file(task_id, fragmented=True)
     if err:
         return err
     return send_file(file_path, mimetype="video/mp4", as_attachment=False, conditional=True)
 
 @app.route("/play_fragmented/<task_id>")
 def play_fragmented(task_id):
-    _, file_path, err = resolve_task_file(task_id, fragmented=True)
+    task, _, err = resolve_task_file(task_id, fragmented=True)
     if err:
         return err
-    return send_file(file_path, mimetype="video/mp4", as_attachment=False, conditional=True)
+    return render_template("tavern.html", filename=task['filename'], stream_url=f"/stream_fragmented/{task_id}")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
