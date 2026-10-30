@@ -15,6 +15,10 @@
         .status-error { color: red; font-weight: bold; }
         .status-encoding { color: orange; font-weight: bold; }
         .status-queued { color: gray; font-weight: bold; }
+        .player-box { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-top: 20px; display: none; }
+        .player-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        video { width: 100%; max-height: 540px; background: #000; display: block; }
+        .action-links a, .action-links button { margin-right: 6px; }
     </style>
 </head>
 <body>
@@ -43,7 +47,16 @@
         <span id="upload-status" style="margin-left: 15px; color: blue;"></span>
     </div>
 
-    <h3>Encoding Queue & History</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Encoding Queue & History</h3>
+        <div>
+            <label for="play-mode" style="width: auto; margin-right: 6px;">Play Format:</label>
+            <select id="play-mode" onchange="onPlayModeChange()">
+                <option value="frag" selected>Fragmented MP4</option>
+                <option value="mp4">Normal MP4</option>
+            </select>
+        </div>
+    </div>
     <table>
         <thead>
             <tr>
@@ -59,11 +72,23 @@
         </tbody>
     </table>
 
+    <div class="player-box" id="playerBox">
+        <div class="player-header">
+            <strong id="playerTitle">Playing</strong>
+            <div>
+                <button onclick="closePlayer()">Close Player</button>
+            </div>
+        </div>
+        <video id="videoPlayer" controls playsinline></video>
+    </div>
+
     <div class="log-box" id="logBox"></div>
 
     <script>
         let pollInterval = setInterval(fetchHistory, 2000);
         let activeLogTask = null;
+        let activePlayTask = null;
+        let latestTasks = {};
 
         function startEncoding() {
             const fileInput = document.getElementById('file');
@@ -106,6 +131,7 @@
             fetch("/history")
                 .then(r => r.json())
                 .then(data => {
+                    latestTasks = data;
                     const tbody = document.getElementById('history-tbody');
                     tbody.innerHTML = "";
                     
@@ -132,7 +158,9 @@
 
                         let actionHtml = `<button onclick="viewLog('${taskId}')">View Log</button>`;
                         if (task.status === 'done') {
+                            actionHtml += ` <button onclick="playVideo('${taskId}')">Play</button>`;
                             actionHtml += ` <a href="/download/${taskId}" target="_blank">Download MP4</a>`;
+                            actionHtml += ` <a href="/download_fragmented/${taskId}" target="_blank">Download Fragmented</a>`;
                         }
                         
                         if (task.status === 'encoding') isEncoding = true;
@@ -142,7 +170,7 @@
                             <td class="status-${task.status}">${task.status.toUpperCase()}</td>
                             <td>${paramStr}</td>
                             <td>${timeStr}</td>
-                            <td>${actionHtml}</td>
+                            <td class="action-links">${actionHtml}</td>
                         `;
                         tbody.appendChild(tr);
                     });
@@ -161,6 +189,37 @@
             activeLogTask = taskId;
             document.getElementById('logBox').style.display = 'block';
             fetchHistory();
+        }
+
+        function playVideo(taskId) {
+            activePlayTask = taskId;
+            const mode = document.getElementById('play-mode').value;
+            const task = latestTasks[taskId];
+            const name = task ? task.filename : taskId;
+            const label = mode === 'frag' ? 'Fragmented MP4' : 'Normal MP4';
+            const url = mode === 'frag' ? `/play_fragmented/${taskId}` : `/play/${taskId}`;
+
+            document.getElementById('playerTitle').innerText = `Playing: ${name} (${label})`;
+            document.getElementById('playerBox').style.display = 'block';
+
+            const video = document.getElementById('videoPlayer');
+            video.src = url;
+            video.play().catch(() => {});
+        }
+
+        function onPlayModeChange() {
+            if (activePlayTask) {
+                playVideo(activePlayTask);
+            }
+        }
+
+        function closePlayer() {
+            activePlayTask = null;
+            const video = document.getElementById('videoPlayer');
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            document.getElementById('playerBox').style.display = 'none';
         }
 
         fetchHistory();

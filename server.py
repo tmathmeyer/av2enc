@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import pathlib
 import threading
 import subprocess
 import shutil
@@ -8,6 +9,7 @@ import time
 import json
 import queue
 from flask import Flask, request, jsonify, send_file, render_template
+import frangere
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -26,19 +28,52 @@ AV2_MUX = "/app/av2-tools/build/apps/av2_mux/av2_mux"
 tasks = {}
 task_queue = queue.Queue()
 
+def fragment_mp4(src_path, out_path):
+    mp4 = frangere.ParsedMP4.Parse(pathlib.Path(src_path).read_bytes())
+    fragments = frangere.FragmentMetadata.build_fragments(mp4)
+    concat = b''.join(b for b, _ in fragments)
+    init_bytes = frangere.InitSegment.build(mp4, b'av2E')
+    pathlib.Path(out_path).write_bytes(init_bytes + concat)
+
+def ensure_fragmented(tid, tinfo):
+    if tinfo.get('status') != 'done':
+        return False
+    output_mp4 = tinfo.get('output_file') or os.path.join(app.config['OUTPUT_FOLDER'], f"{tid}.mp4")
+    output_fmp4 = tinfo.get('fragmented_file') or os.path.join(app.config['OUTPUT_FOLDER'], f"{tid}_frag.mp4")
+    changed = (tinfo.get('output_file') != output_mp4) or (tinfo.get('fragmented_file') != output_fmp4)
+    tinfo['output_file'] = output_mp4
+    tinfo['fragmented_file'] = output_fmp4
+    if os.path.exists(output_mp4) and not os.path.exists(output_fmp4):
+        fragment_mp4(output_mp4, output_fmp4)
+        tinfo.setdefault('log', []).append("Fragmented existing MP4.")
+        return True
+    return changed
+
 def load_history():
     global tasks
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, "r") as f:
                 tasks = json.load(f)
-            # Reset any stuck tasks
-            for tid, tinfo in tasks.items():
-                if tinfo['status'] in ['queued', 'encoding']:
-                    tinfo['status'] = 'error'
-                    tinfo['log'].append("Task aborted due to server restart.")
         except Exception:
             tasks = {}
+            return
+
+        dirty = False
+        for tid, tinfo in tasks.items():
+            if tinfo['status'] in ['queued', 'encoding']:
+                tinfo['status'] = 'error'
+                tinfo['log'].append("Task aborted due to server restart.")
+                dirty = True
+            elif tinfo['status'] == 'done':
+                try:
+                    if ensure_fragmented(tid, tinfo):
+                        dirty = True
+                except Exception as e:
+                    tinfo.setdefault('log', []).append(f"Fragmentation failed: {e}")
+                    dirty = True
+        if dirty:
+            save_history()
 
 def save_history():
     with open(HISTORY_FILE, "w") as f:
@@ -66,6 +101,7 @@ def process_encode_task(task_id, input_path, threads, cpu_used, limit):
     save_history()
 
     output_mp4 = os.path.join(app.config['OUTPUT_FOLDER'], f"{task_id}.mp4")
+    output_fmp4 = os.path.join(app.config['OUTPUT_FOLDER'], f"{task_id}_frag.mp4")
     temp_obu = os.path.join(app.config['OUTPUT_FOLDER'], f"{task_id}.obu")
     
     tasks[task_id]['log'].append("Detecting framerate...")
@@ -117,13 +153,16 @@ def process_encode_task(task_id, input_path, threads, cpu_used, limit):
             save_history()
             return
             
-        tasks[task_id]['log'].append("Muxing complete.")
+        tasks[task_id]['log'].append("Muxing complete. Fragmenting MP4...")
+        fragment_mp4(output_mp4, output_fmp4)
+        tasks[task_id]['log'].append("Fragmentation complete.")
         
         if os.path.exists(temp_obu):
             os.remove(temp_obu)
             
         tasks[task_id]['status'] = 'done'
         tasks[task_id]['output_file'] = output_mp4
+        tasks[task_id]['fragmented_file'] = output_fmp4
         
     except Exception as e:
         tasks[task_id]['status'] = 'error'
@@ -206,16 +245,55 @@ def status(task_id):
 def history():
     return jsonify(tasks)
 
-@app.route("/download/<task_id>")
-def download(task_id):
+def resolve_task_file(task_id, fragmented=False):
     if task_id not in tasks:
-        return "Task not found", 404
-        
+        return None, None, ("Task not found", 404)
     task = tasks[task_id]
     if task['status'] != 'done':
-        return "Not available", 400
-        
-    return send_file(task['output_file'], as_attachment=True, download_name=f"encoded_{task['filename']}.mp4")
+        return None, None, ("Not available", 400)
+    if fragmented:
+        try:
+            if ensure_fragmented(task_id, task):
+                save_history()
+        except Exception as e:
+            return None, None, (f"Fragmentation failed: {e}", 500)
+        file_path = task.get('fragmented_file')
+    else:
+        file_path = task.get('output_file')
+    if not file_path or not os.path.exists(file_path):
+        return None, None, ("File not found", 404)
+    return task, file_path, None
+
+@app.route("/download/<task_id>")
+def download(task_id):
+    frag = request.args.get("fragmented") in ("1", "true", "yes")
+    task, file_path, err = resolve_task_file(task_id, fragmented=frag)
+    if err:
+        return err
+    prefix = "encoded_frag_" if frag else "encoded_"
+    return send_file(file_path, as_attachment=True, download_name=f"{prefix}{task['filename']}.mp4")
+
+@app.route("/download_fragmented/<task_id>")
+def download_fragmented(task_id):
+    task, file_path, err = resolve_task_file(task_id, fragmented=True)
+    if err:
+        return err
+    return send_file(file_path, as_attachment=True, download_name=f"encoded_frag_{task['filename']}.mp4")
+
+@app.route("/play/<task_id>")
+def play(task_id):
+    frag = request.args.get("fragmented") in ("1", "true", "yes")
+    _, file_path, err = resolve_task_file(task_id, fragmented=frag)
+    if err:
+        return err
+    return send_file(file_path, mimetype="video/mp4", as_attachment=False, conditional=True)
+
+@app.route("/play_fragmented/<task_id>")
+def play_fragmented(task_id):
+    _, file_path, err = resolve_task_file(task_id, fragmented=True)
+    if err:
+        return err
+    return send_file(file_path, mimetype="video/mp4", as_attachment=False, conditional=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
